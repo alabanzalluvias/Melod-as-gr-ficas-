@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pizarra Melódica - Studio Edition</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f172a; 
+            --glass-bg: rgba(30, 41, 59, 0.6);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --text-color: #f8fafc;
+            /* Voces */
+            --v1-color: #38bdf8; 
+            --v2-color: #fb923c; 
+            --v3-color: #c084fc; 
+            /* Octavas */
+            --oct-high: #fb7185; 
+            --oct-mid: #facc15;  
+            --oct-low: #34d399;  
+        }
+
+        body {
+            margin: 0; padding: 20px; background: linear-gradient(135deg, #020617, #0f172a);
+            color: var(--text-color); font-family: 'Montserrat', sans-serif;
+            display: flex; flex-direction: column; align-items: center; min-height: 100vh;
+        }
+
+        .header { text-align: center; margin-bottom: 25px; }
+        .header h1 { margin: 0; font-weight: 700; font-size: 1.8rem; letter-spacing: -0.5px; background: linear-gradient(to right, #38bdf8, #c084fc); -webkit-background-clip: text; color: transparent; }
+        .header p { margin: 5px 0 0 0; font-size: 0.85rem; color: #94a3b8; font-weight: 500; }
+
+        .controls-wrapper { display: flex; flex-direction: column; gap: 15px; margin-bottom: 25px; width: 100%; max-width: 1250px; }
+        .toolbar {
+            display: flex; gap: 15px; flex-wrap: wrap; justify-content: space-between; align-items: center;
+            background: var(--glass-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            padding: 12px 20px; border-radius: 12px; border: 1px solid var(--glass-border); box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .toolbar-group { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+
+        .tonality-group { display: flex; border: 1px solid #334155; border-radius: 8px; overflow: hidden; background: #0f172a; }
+        .tonality-group select {
+            background: transparent; color: var(--text-color); border: none; border-right: 1px solid #334155; padding: 8px 12px;
+            font-family: 'Montserrat', sans-serif; font-weight: 600; font-size: 0.9rem; cursor: pointer; outline: none;
+        }
+        .tonality-group select:last-child { border-right: none; }
+        .tonality-group select:hover { background: #1e293b; }
+
+        .voice-control { display: flex; align-items: center; background: #0f172a; border-radius: 8px; border: 1px solid #334155; overflow: hidden; }
+        .layer-btn {
+            background: transparent; color: #94a3b8; border: none; padding: 8px 16px; cursor: pointer;
+            font-family: 'Montserrat', sans-serif; font-weight: 600; font-size: 0.85rem; transition: 0.2s;
+        }
+        .layer-btn:hover { background: rgba(255,255,255,0.05); }
+        .layer-btn.active[data-voice="1"] { color: var(--text-color); background: rgba(56, 189, 248, 0.2); box-shadow: inset 0 -2px 0 var(--v1-color); }
+        .layer-btn.active[data-voice="2"] { color: var(--text-color); background: rgba(251, 146, 60, 0.2); box-shadow: inset 0 -2px 0 var(--v2-color); }
+        .layer-btn.active[data-voice="3"] { color: var(--text-color); background: rgba(192, 132, 252, 0.2); box-shadow: inset 0 -2px 0 var(--v3-color); }
+        
+        .solo-btn {
+            background: #1e293b; color: #64748b; border: none; border-left: 1px solid #334155; padding: 8px 12px;
+            font-weight: 700; cursor: pointer; transition: 0.2s; font-size: 0.85rem;
+        }
+        .solo-btn.active { background: #eab308; color: #000; text-shadow: 0 0 5px rgba(255,255,255,0.5); }
+        .solo-btn:hover:not(.active) { background: #334155; color: #fff; }
+
+        .play-btn {
+            background: #10b981; color: #000; border: none; padding: 8px 24px; border-radius: 8px;
+            font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 0.95rem; cursor: pointer;
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.4); transition: 0.2s; display: flex; align-items: center; gap: 8px;
+        }
+        .play-btn:hover { background: #059669; transform: scale(1.02); }
+        .play-btn.playing { background: #ef4444; box-shadow: 0 0 15px rgba(239, 68, 68, 0.4); }
+
+        .clear-btn { background: #0f172a; color: #ef4444; border: 1px solid #7f1d1d; padding: 8px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        .clear-btn:hover { background: #7f1d1d; color: #fff; }
+
+        .main-workspace {
+            display: flex; flex-direction: row; width: 100%; max-width: 1250px;
+            border: 1px solid var(--glass-border); border-radius: 12px; overflow: hidden;
+            background: rgba(15, 23, 42, 0.8); box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+
+        .piano-sidebar { width: 75px; background: #e2e8f0; display: flex; flex-direction: column; flex-shrink: 0; border-right: 2px solid #0f172a; z-index: 10; }
+        #pianoKeys { display: flex; flex-direction: column; height: 720px; flex-shrink: 0; }
+        
+        .piano-spacer {
+            height: 50px; background: #020617; border-top: 2px solid #0f172a;
+            display: flex; align-items: center; justify-content: center;
+            color: #475569; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.5px; box-sizing: border-box; flex-shrink: 0;
+        }
+
+        .key { flex: 1; position: relative; display: flex; align-items: center; justify-content: flex-start; padding-left: 6px; font-weight: 700; font-size: 0.7rem; box-sizing: border-box; }
+        .key span { position: relative; z-index: 3; }
+        .key.white { width: 100%; color: #334155; box-shadow: inset -2px 0 5px rgba(0,0,0,0.05); transition: background 0.3s; }
+        .key.border-b { border-bottom: 1px solid #cbd5e1; }
+        .key.black { width: 100%; color: #94a3b8; }
+        .key.black::before {
+            content: ''; position: absolute; left: 0; top: 0; height: 100%; width: 55%; background: #0f172a;
+            border-radius: 0 3px 3px 0; border-bottom: 2px solid #020617; border-right: 2px solid #020617;
+            box-shadow: 3px 2px 5px rgba(0,0,0,0.4); z-index: 2; transition: background 0.3s;
+        }
+
+        .key.in-scale span { font-size: 0.75rem; text-shadow: 0 0 3px rgba(255,255,255,0.3); }
+        .key.white.in-scale.oct-mid { background: var(--oct-mid); color: #000; }
+        .key.black.in-scale.oct-mid::before { background: #ca8a04; }
+        .key.black.in-scale.oct-mid span { color: var(--oct-mid); }
+        
+        .key.white.in-scale.oct-high { background: var(--oct-high); color: #000; }
+        .key.black.in-scale.oct-high::before { background: #e11d48; }
+        .key.black.in-scale.oct-high span { color: var(--oct-high); }
+        
+        .key.white.in-scale.oct-low { background: var(--oct-low); color: #000; }
+        .key.black.in-scale.oct-low::before { background: #059669; }
+        .key.black.in-scale.oct-low span { color: var(--oct-low); }
+
+        .canvas-container { flex-grow: 1; position: relative; overflow-x: auto; display: flex; flex-direction: column; width: 1100px; }
+        canvas { cursor: crosshair; touch-action: none; display: block; width: 1100px; height: 720px; flex-shrink: 0; }
+        
+        .chord-track { display: flex; width: 1100px; height: 50px; flex-shrink: 0; background: #020617; border-top: 2px solid #0f172a; box-sizing: border-box; }
+        .chord-cell { flex: 1; border-right: 1px solid #0f172a; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: background 0.2s; }
+        .chord-cell:last-child { border-right: none; }
+        .chord-cell:hover { background: #1e293b; }
+        .chord-cell.active { background: #0f172a; border-bottom: 3px solid var(--oct-mid); }
+        
+        .chord-degree { font-size: 0.9rem; font-weight: 700; color: #f8fafc; }
+        .chord-degree.empty { color: #334155; font-size: 1.1rem; }
+        .chord-notes { font-size: 0.6rem; color: #94a3b8; margin-top: 1px; }
+
+        .chord-selector {
+            position: absolute; display: none; flex-wrap: wrap; width: 160px;
+            background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(10px); border: 1px solid #334155; border-radius: 12px; padding: 10px; gap: 6px;
+            z-index: 100; box-shadow: 0 15px 35px rgba(0,0,0,0.6);
+        }
+        .chord-btn {
+            background: #1e293b; color: #e2e8f0; border: 1px solid #334155; border-radius: 6px;
+            padding: 8px 0; width: calc(33.33% - 4px); font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 0.85rem; cursor: pointer; transition: 0.2s;
+        }
+        .chord-btn:hover { background: var(--oct-mid); border-color: var(--oct-mid); color: #000; }
+        .chord-btn.clear { background: rgba(239, 68, 68, 0.1); width: 100%; border-color: rgba(239, 68, 68, 0.3); color: #ef4444; }
+        .chord-btn.clear:hover { background: #ef4444; color: #fff; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>Studio Melódico Numérico</h1>
+        <p>Luis Guarin - EcoWorship</p>
+    </div>
+
+    <div class="controls-wrapper">
+        <div class="toolbar">
+            <div class="toolbar-group">
+                <div class="tonality-group">
+                    <select id="sel-note"><option value="C">C (Do)</option><option value="D">D (Re)</option><option value="E">E (Mi)</option><option value="F">F (Fa)</option><option value="G">G (Sol)</option><option value="A">A (La)</option><option value="B">B (Si)</option></select>
+                    <select id="sel-accidental"><option value="">♮</option><option value="#">#</option><option value="b">b</option></select>
+                    <select id="sel-scale"><option value="major">Mayor</option><option value="minor">Menor</option></select>
+                </div>
+            </div>
+
+            <div class="toolbar-group">
+                <div class="voice-control">
+                    <button class="layer-btn active" data-voice="1">Principal</button>
+                    <button class="solo-btn" data-voice-solo="1" title="Solo Voz 1">S</button>
+                </div>
+                <div class="voice-control">
+                    <button class="layer-btn" data-voice="2">2da Voz</button>
+                    <button class="solo-btn" data-voice-solo="2" title="Solo Voz 2">S</button>
+                </div>
+                <div class="voice-control">
+                    <button class="layer-btn" data-voice="3">3ra Voz</button>
+                    <button class="solo-btn" data-voice-solo="3" title="Solo Voz 3">S</button>
+                </div>
+            </div>
+
+            <div class="toolbar-group">
+                <button class="play-btn" id="playBtn">▶ Reproducir</button>
+                <button class="clear-btn" id="clearBtn">Limpiar Pizarra</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-workspace">
+        <div class="piano-sidebar" id="pianoSidebar">
+            <div id="pianoKeys"></div>
+            <div class="piano-spacer">ACORDES</div>
+        </div>
+        <div class="canvas-container" id="canvasWrapper">
+            <canvas id="melodicCanvas" width="1100" height="720"></canvas>
+            <div id="chordTrack" class="chord-track"></div>
+            <div id="chordSelector" class="chord-selector"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- MOTOR DE AUDIO ACÚSTICO PRO (Extraído de Vocal TAB) ---
+        let audioCtx;
+        let masterGain;
+        let droneGainNode;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                
+                masterGain = audioCtx.createGain();
+                masterGain.gain.value = 0.7;
+                masterGain.connect(audioCtx.destination);
+                
+                droneGainNode = audioCtx.createGain();
+                droneGainNode.gain.value = 0.4;
+                droneGainNode.connect(masterGain);
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playAcousticPiano(midiNote) {
+            initAudio();
+            if (!audioCtx) return;
+            const now = audioCtx.currentTime;
+            const freq = 440 * Math.pow(2, (midiNote - 69) / 12);
+
+            const osc1 = audioCtx.createOscillator(); 
+            osc1.type = 'triangle'; 
+            const osc2 = audioCtx.createOscillator(); 
+            osc2.type = 'sine';
+            const osc3 = audioCtx.createOscillator(); 
+            osc3.type = 'sine';
+
+            osc1.frequency.value = freq;
+            osc2.frequency.value = freq;
+            osc2.detune.value = 6; 
+            osc3.frequency.value = freq * 2; 
+
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(2000, now);
+            filter.frequency.exponentialRampToValueAtTime(300, now + 1.5);
+
+            const gainNode = audioCtx.createGain();
+            gainNode.gain.setValueAtTime(0, now);
+            gainNode.gain.linearRampToValueAtTime(0.8, now + 0.01); 
+            gainNode.gain.setTargetAtTime(0.001, now + 0.02, 0.4); 
+
+            osc1.connect(gainNode);
+            osc2.connect(gainNode);
+            
+            const osc3Gain = audioCtx.createGain();
+            osc3Gain.gain.setValueAtTime(0, now);
+            osc3Gain.gain.linearRampToValueAtTime(0.15, now + 0.01);
+            osc3Gain.gain.setTargetAtTime(0.001, now + 0.02, 0.2);
+            osc3.connect(osc3Gain);
+            osc3Gain.connect(gainNode);
+
+            gainNode.connect(filter);
+            filter.connect(masterGain);
+
+            osc1.start(now); osc2.start(now); osc3.start(now);
+            const stopTime = now + 2.0;
+            osc1.stop(stopTime); osc2.stop(stopTime); osc3.stop(stopTime);
+        }
+
+        let activeDrones = [];
+        function playChordPad(midiNotes) {
+            initAudio();
+            stopDrone(); 
+            const now = audioCtx.currentTime;
+            
+            midiNotes.forEach(midiNote => {
+                const freq = 440 * Math.pow(2, (midiNote - 12 - 69) / 12); 
+                const osc = audioCtx.createOscillator();
+                osc.type = 'sine';
+                
+                const osc2 = audioCtx.createOscillator();
+                osc2.type = 'triangle';
+                osc2.detune.value = 5;
+
+                const indGain = audioCtx.createGain();
+                indGain.gain.setValueAtTime(0, now);
+                indGain.gain.linearRampToValueAtTime(0.1, now + 0.5); 
+                
+                osc.connect(indGain);
+                osc2.connect(indGain);
+                indGain.connect(droneGainNode);
+                
+                osc.frequency.value = freq;
+                osc2.frequency.value = freq;
+                
+                osc.start(now);
+                osc2.start(now);
+                
+                activeDrones.push({ osc1: osc, osc2: osc2, gain: indGain });
+            });
+        }
+
+        function stopDrone() {
+            if(activeDrones.length === 0) return;
+            const now = audioCtx.currentTime;
+            activeDrones.forEach(d => {
+                d.gain.gain.cancelScheduledValues(now);
+                d.gain.gain.setValueAtTime(d.gain.gain.value, now);
+                d.gain.gain.linearRampToValueAtTime(0.001, now + 0.5); 
+                setTimeout(() => {
+                    try { d.osc1.stop(); d.osc2.stop(); } catch(e){}
+                }, 600);
+            });
+            activeDrones = [];
+            document.querySelectorAll('.chord-cell').forEach(c => c.classList.remove('drone-active'));
+        }
+
+        // --- LÓGICA MUSICAL Y ESTADOS ---
+        const intervalLabels = { 0: '1', 1: 'b2', 2: '2', 3: 'b3', 4: '3', 5: '4', 6: '#4', 7: '5', 8: 'b6', 9: '6', 10: 'b7', 11: '7' };
+        const totalNotes = 36; const midiStart = 48; const midiNotes = [];
+        for (let i = midiStart + totalNotes - 1; i >= midiStart; i--) midiNotes.push(i);
+
+        let scaleMapping = {}; 
+        let currentRootOffset = 0; 
+        let currentScaleMode = 'major';
+
+        const majorChords = [ { deg: '1', notes: '1, 3, 5', iv: [0, 4, 7] }, { deg: '2', notes: '2, 4, 6', iv: [2, 5, 9] }, { deg: '3', notes: '3, 5, 7', iv: [4, 7, 11] }, { deg: '4', notes: '4, 6, 1', iv: [5, 9, 12] }, { deg: '5', notes: '5, 7, 2', iv: [7, 11, 14] }, { deg: '6', notes: '6, 1, 3', iv: [9, 12, 16] }, { deg: '7', notes: '7, 2, 4', iv: [11, 14, 17] } ];
+        const minorChords = [ { deg: '1', notes: '1, b3, 5', iv: [0, 3, 7] }, { deg: '2', notes: '2, 4, b6', iv: [2, 5, 8] }, { deg: 'b3', notes: 'b3, 5, b7', iv: [3, 7, 10] }, { deg: '4', notes: '4, b6, 1', iv: [5, 8, 12] }, { deg: '5', notes: '5, b7, 2', iv: [7, 10, 14] }, { deg: 'b6', notes: 'b6, 1, b3', iv: [8, 12, 15] }, { deg: 'b7', notes: 'b7, 2, 4', iv: [10, 14, 17] } ];
+        
+        let chordStates = new Array(24).fill(null);
+
+        let currentVoice = "1";
+        const soloStates = { "1": false, "2": false, "3": false };
+        const voices = {
+            "1": { color: getComputedStyle(document.documentElement).getPropertyValue('--v1-color').trim(), nodes: new Map() },
+            "2": { color: getComputedStyle(document.documentElement).getPropertyValue('--v2-color').trim(), nodes: new Map() },
+            "3": { color: getComputedStyle(document.documentElement).getPropertyValue('--v3-color').trim(), nodes: new Map() }
+        };
+
+        let isPlaying = false;
+        let playInterval;
+        let currentPlayStep = -1;
+
+        // --- CONSTRUCCIÓN DEL PIANO Y CANVAS ---
+        const pianoKeysContainer = document.getElementById('pianoKeys');
+        midiNotes.forEach(midi => {
+            const noteInOctave = midi % 12;
+            const isWhite = [0, 2, 4, 5, 7, 9, 11].includes(noteInOctave);
+            let keyDiv = document.createElement('div');
+            keyDiv.dataset.midi = midi;
+            let span = document.createElement('span');
+            keyDiv.appendChild(span);
+            if (isWhite) {
+                keyDiv.className = 'key white';
+                if (noteInOctave === 0 || noteInOctave === 5) keyDiv.classList.add('border-b');
+            } else keyDiv.className = 'key black';
+            pianoKeysContainer.appendChild(keyDiv);
+        });
+
+        const canvas = document.getElementById('melodicCanvas');
+        const ctx = canvas.getContext('2d');
+        const rows = totalNotes; const cols = 24; 
+        let cellWidth = canvas.width / cols; let cellHeight = canvas.height / rows;
+
+        function updateTonality(isInitialization = false) {
+            const note = document.getElementById('sel-note').value;
+            const acc = document.getElementById('sel-accidental').value;
+            currentScaleMode = document.getElementById('sel-scale').value;
+
+            const baseOffsets = { 'C':0, 'D':2, 'E':4, 'F':5, 'G':7, 'A':9, 'B':11 };
+            const accOffsets = { '':0, '#':1, 'b':-1 };
+            let newRootOffset = (baseOffsets[note] + accOffsets[acc] + 12) % 12;
+            const baseMidiCentral = 60 + newRootOffset; 
+            
+            if (!isInitialization && currentRootOffset !== newRootOffset) {
+                const diff = newRootOffset - currentRootOffset;
+                Object.keys(voices).forEach(vKey => {
+                    const transpondedNodes = new Map();
+                    for (let [col, oldRow] of voices[vKey].nodes.entries()) {
+                        let newRow = oldRow - diff; 
+                        if (newRow >= 0 && newRow < totalNotes) transpondedNodes.set(col, newRow);
+                    }
+                    voices[vKey].nodes = transpondedNodes;
+                });
+            }
+
+            currentRootOffset = newRootOffset; scaleMapping = {};
+            const diatonicIntervals = (currentScaleMode === 'major') ? [0, 2, 4, 5, 7, 9, 11] : [0, 2, 3, 5, 7, 8, 10]; 
+
+            midiNotes.forEach(midi => {
+                let diff = midi - baseMidiCentral;
+                let octaveShift = Math.floor(diff / 12);
+                let interval = (diff % 12 + 12) % 12;
+                let label = intervalLabels[interval];
+                if (octaveShift > 0) label += '+'; else if (octaveShift < 0) label = '-' + label; 
+                scaleMapping[midi] = { label: label, isDiatonic: diatonicIntervals.includes(interval), octaveLevel: octaveShift };
+            });
+
+            document.querySelectorAll('.key').forEach(key => {
+                const midi = parseInt(key.dataset.midi);
+                const data = scaleMapping[midi];
+                key.classList.remove('in-scale', 'oct-high', 'oct-mid', 'oct-low');
+                key.querySelector('span').innerText = '';
+                if (data && data.isDiatonic) {
+                    key.classList.add('in-scale');
+                    if (data.octaveLevel > 0) key.classList.add('oct-high');
+                    else if (data.octaveLevel < 0) key.classList.add('oct-low');
+                    else key.classList.add('oct-mid');
+                    key.querySelector('span').innerText = data.label;
+                }
+            });
+            renderChordTrack(); drawGrid(); 
+        }
+
+        // --- SISTEMA DE ACORDES ---
+        function renderChordTrack() {
+            const track = document.getElementById('chordTrack');
+            track.innerHTML = '';
+            const chordSet = currentScaleMode === 'major' ? majorChords : minorChords;
+            for(let i = 0; i < cols; i++) {
+                let cell = document.createElement('div');
+                cell.className = 'chord-cell';
+                if(chordStates[i] !== null) {
+                    let c = chordSet[chordStates[i]];
+                    cell.innerHTML = `<div class="chord-degree">${c.deg}</div><div class="chord-notes">(${c.notes})</div>`;
+                    cell.classList.add('active');
+                } else cell.innerHTML = `<div class="chord-degree empty">+</div>`;
+                cell.addEventListener('click', (e) => { e.stopPropagation(); openChordSelector(i, e.currentTarget); });
+                track.appendChild(cell);
+            }
+        }
+
+        function openChordSelector(colIndex, cellElement) {
+            const selector = document.getElementById('chordSelector');
+            selector.innerHTML = '';
+            const chordSet = currentScaleMode === 'major' ? majorChords : minorChords;
+            chordSet.forEach((c, idx) => {
+                let btn = document.createElement('button'); btn.className = 'chord-btn'; btn.innerText = c.deg;
+                btn.onclick = () => { chordStates[colIndex] = idx; selector.style.display = 'none'; renderChordTrack(); drawGrid(); };
+                selector.appendChild(btn);
+            });
+            let clearBtn = document.createElement('button'); clearBtn.className = 'chord-btn clear'; clearBtn.innerText = 'Borrar';
+            clearBtn.onclick = () => { chordStates[colIndex] = null; selector.style.display = 'none'; renderChordTrack(); drawGrid(); };
+            selector.appendChild(clearBtn);
+            selector.style.left = Math.min(cellElement.offsetLeft, 1100 - 180) + 'px'; selector.style.bottom = '60px'; selector.style.display = 'flex';
+        }
+        document.addEventListener('click', (e) => { if(!e.target.closest('.chord-selector')) document.getElementById('chordSelector').style.display = 'none'; });
+
+        // --- INTERACCIÓN Y REPRODUCCIÓN ---
+        document.getElementById('sel-note').addEventListener('change', () => updateTonality(false));
+        document.getElementById('sel-accidental').addEventListener('change', () => updateTonality(false));
+        document.getElementById('sel-scale').addEventListener('change', () => updateTonality(false)); 
+        
+        document.querySelectorAll('.layer-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.layer-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active'); currentVoice = e.target.dataset.voice;
+            });
+        });
+
+        document.querySelectorAll('.solo-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const v = e.target.dataset.voiceSolo;
+                soloStates[v] = !soloStates[v];
+                e.target.classList.toggle('active', soloStates[v]);
+                drawGrid(); 
+            });
+        });
+
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            if(confirm('¿Limpiar todo el proyecto?')) {
+                voices["1"].nodes.clear(); voices["2"].nodes.clear(); voices["3"].nodes.clear();
+                chordStates.fill(null); renderChordTrack(); drawGrid();
+            }
+        });
+
+        document.getElementById('playBtn').addEventListener('click', (e) => {
+            initAudio();
+            const btn = e.currentTarget;
+            if (isPlaying) {
+                clearInterval(playInterval);
+                isPlaying = false; currentPlayStep = -1;
+                btn.innerHTML = '▶ Reproducir'; btn.classList.remove('playing');
+                drawGrid();
+            } else {
+                isPlaying = true; currentPlayStep = 0;
+                btn.innerHTML = '■ Detener'; btn.classList.add('playing');
+                
+                playInterval = setInterval(() => {
+                    playColumn(currentPlayStep);
+                    drawGrid();
+                    currentPlayStep++;
+                    if (currentPlayStep >= cols) { 
+                        clearInterval(playInterval);
+                        isPlaying = false; currentPlayStep = -1;
+                        btn.innerHTML = '▶ Reproducir'; btn.classList.remove('playing');
+                        drawGrid();
+                    }
+                }, 500); 
+            }
+        });
+
+        function playColumn(colIndex) {
+            const anySolo = soloStates["1"] || soloStates["2"] || soloStates["3"];
+
+            Object.keys(voices).forEach(vKey => {
+                if (anySolo && !soloStates[vKey]) return; 
+                
+                const voice = voices[vKey];
+                if (voice.nodes.has(colIndex)) {
+                    const row = voice.nodes.get(colIndex);
+                    playAcousticPiano(midiNotes[row]); 
+                }
+            });
+
+            if (!anySolo && chordStates[colIndex] !== null) {
+                const chordSet = currentScaleMode === 'major' ? majorChords : minorChords;
+                const intervals = chordSet[chordStates[colIndex]].iv;
+                const rootMidi = 60 + currentRootOffset; 
+                const actualNotes = intervals.map(iv => rootMidi + iv);
+                playChordPad(actualNotes);
+            }
+        }
+
+        canvas.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const col = Math.floor((e.clientX - rect.left) / (rect.width / cols));
+            const row = Math.floor((e.clientY - rect.top) / (rect.height / rows));
+
+            if (col >= 0 && col < cols && row >= 0 && row < rows) {
+                const currentNodes = voices[currentVoice].nodes;
+                if (currentNodes.has(col) && currentNodes.get(col) === row) {
+                    currentNodes.delete(col); 
+                } else {
+                    currentNodes.set(col, row); 
+                    playAcousticPiano(midiNotes[row]); 
+                }
+                drawGrid();
+            }
+        });
+
+        function drawGrid() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.font = '600 11px Montserrat'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+
+            const anySolo = soloStates["1"] || soloStates["2"] || soloStates["3"];
+
+            for (let c = 0; c < cols; c++) {
+                if (c === currentPlayStep) {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.1)'; 
+                    ctx.fillRect(c * cellWidth, 0, cellWidth, canvas.height);
+                } else if (chordStates[c] !== null) {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.02)';
+                    ctx.fillRect(c * cellWidth, 0, cellWidth, canvas.height);
+                }
+            }
+
+            for (let r = 0; r < rows; r++) {
+                const data = scaleMapping[midiNotes[r]];
+                if (data && data.isDiatonic) {
+                    const oct = data.octaveLevel;
+                    if (oct > 0) ctx.fillStyle = 'rgba(251, 113, 133, 0.04)'; 
+                    else if (oct < 0) ctx.fillStyle = 'rgba(52, 211, 153, 0.04)'; 
+                    else ctx.fillStyle = 'rgba(250, 204, 21, 0.04)'; 
+                    ctx.fillRect(0, r * cellHeight, canvas.width, cellHeight);
+                }
+                ctx.beginPath(); ctx.moveTo(0, (r + 1) * cellHeight); ctx.lineTo(canvas.width, (r + 1) * cellHeight);
+                ctx.strokeStyle = (data && data.isDiatonic) ? '#1e293b' : '#0f172a'; ctx.lineWidth = 1; ctx.stroke();
+            }
+
+            for (let c = 0; c <= cols; c++) {
+                ctx.beginPath(); ctx.moveTo(c * cellWidth, 0); ctx.lineTo(c * cellWidth, canvas.height);
+                ctx.strokeStyle = '#1e293b'; ctx.stroke();
+            }
+
+            const cellMatrix = {}; 
+            Object.keys(voices).forEach(vKey => {
+                const voice = voices[vKey];
+                const isMuted = anySolo && !soloStates[vKey];
+                
+                if (voice.nodes.size > 0) {
+                    const sortedCols = Array.from(voice.nodes.keys()).sort((a, b) => a - b);
+                    ctx.beginPath();
+                    sortedCols.forEach((col, index) => {
+                        const row = voice.nodes.get(col);
+                        const x = (col * cellWidth) + (cellWidth / 2);
+                        const y = (row * cellHeight) + (cellHeight / 2);
+                        if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                        
+                        if (!cellMatrix[`${col}-${row}`]) cellMatrix[`${col}-${row}`] = [];
+                        cellMatrix[`${col}-${row}`].push({ id: vKey, color: voice.color, muted: isMuted });
+                    });
+                    
+                    ctx.globalAlpha = isMuted ? 0.15 : 1.0;
+                    ctx.shadowColor = voice.color; ctx.shadowBlur = isMuted ? 0 : 12;
+                    ctx.lineWidth = 3; ctx.strokeStyle = voice.color; ctx.stroke(); 
+                    ctx.shadowBlur = 0; ctx.globalAlpha = 1.0;
+                }
+            });
+
+            Object.keys(cellMatrix).forEach(key => {
+                const [colStr, rowStr] = key.split('-');
+                const col = parseInt(colStr); const row = parseInt(rowStr);
+                const vList = cellMatrix[key];
+                const x = (col * cellWidth) + (cellWidth / 2); const y = (row * cellHeight) + (cellHeight / 2);
+                const radius = 12; const label = scaleMapping[midiNotes[row]] ? scaleMapping[midiNotes[row]].label : '';
+
+                const allMuted = vList.every(v => v.muted);
+                ctx.globalAlpha = allMuted ? 0.2 : 1.0;
+
+                if (vList.length === 1) {
+                    ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2);
+                    ctx.fillStyle = vList[0].color; ctx.fill();
+                } else if (vList.length === 2) {
+                    ctx.beginPath(); ctx.arc(x, y, radius, Math.PI/2, Math.PI*1.5); ctx.fillStyle = vList[0].color; ctx.fill();
+                    ctx.beginPath(); ctx.arc(x, y, radius, -Math.PI/2, Math.PI/2); ctx.fillStyle = vList[1].color; ctx.fill();
+                } else if (vList.length === 3) {
+                    for(let i=0; i<3; i++) {
+                        ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, radius, (i*2/3)*Math.PI, ((i+1)*2/3)*Math.PI);
+                        ctx.fillStyle = vList[i].color; ctx.fill();
+                    }
+                }
+                ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2);
+                ctx.lineWidth = 1.5; ctx.strokeStyle = '#fff'; ctx.stroke();
+                ctx.fillStyle = '#ffffff'; ctx.fillText(label, x, y + 1);
+                ctx.globalAlpha = 1.0;
+            });
+        }
+
+        updateTonality(true); 
+    </script>
+</body>
+</html>
