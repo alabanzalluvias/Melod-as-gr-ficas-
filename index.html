@@ -156,6 +156,11 @@
                     <select id="sel-note"><option value="C">C (Do)</option><option value="D">D (Re)</option><option value="E">E (Mi)</option><option value="F">F (Fa)</option><option value="G">G (Sol)</option><option value="A">A (La)</option><option value="B">B (Si)</option></select>
                     <select id="sel-accidental"><option value="">♮</option><option value="#">#</option><option value="b">b</option></select>
                     <select id="sel-scale"><option value="major">Mayor</option><option value="minor">Menor</option></select>
+                    <select id="sel-octave">
+                        <option value="-1">-1 Octava</option>
+                        <option value="0" selected>Octava Normal</option>
+                        <option value="1">+1 Octava</option>
+                    </select>
                 </div>
             </div>
 
@@ -194,7 +199,7 @@
     </div>
 
     <script>
-        // --- MOTOR DE AUDIO ACÚSTICO PRO (Extraído de Vocal TAB) ---
+        // --- MOTOR DE AUDIO ACÚSTICO PRO Y LIMPIO (SIN SATURACIÓN) ---
         let audioCtx;
         let masterGain;
         let droneGainNode;
@@ -204,11 +209,11 @@
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 
                 masterGain = audioCtx.createGain();
-                masterGain.gain.value = 0.7;
+                masterGain.gain.value = 0.4; // Volumen maestro optimizado para evitar clipping / saturación
                 masterGain.connect(audioCtx.destination);
                 
                 droneGainNode = audioCtx.createGain();
-                droneGainNode.gain.value = 0.4;
+                droneGainNode.gain.value = 0.25; // Volumen de pads controlado
                 droneGainNode.connect(masterGain);
             }
             if (audioCtx.state === 'suspended') {
@@ -219,8 +224,13 @@
         function playAcousticPiano(midiNote) {
             initAudio();
             if (!audioCtx) return;
+            
+            // Añadir el desplazamiento del selector de octava
+            const octaveShift = parseInt(document.getElementById('sel-octave').value) * 12;
+            const finalMidi = midiNote + octaveShift;
+
             const now = audioCtx.currentTime;
-            const freq = 440 * Math.pow(2, (midiNote - 69) / 12);
+            const freq = 440 * Math.pow(2, (finalMidi - 69) / 12);
 
             const osc1 = audioCtx.createOscillator(); 
             osc1.type = 'triangle'; 
@@ -231,26 +241,26 @@
 
             osc1.frequency.value = freq;
             osc2.frequency.value = freq;
-            osc2.detune.value = 6; 
+            osc2.detune.value = 5; 
             osc3.frequency.value = freq * 2; 
 
             const filter = audioCtx.createBiquadFilter();
             filter.type = 'lowpass';
-            filter.frequency.setValueAtTime(2000, now);
-            filter.frequency.exponentialRampToValueAtTime(300, now + 1.5);
+            filter.frequency.setValueAtTime(1500, now);
+            filter.frequency.exponentialRampToValueAtTime(250, now + 1.2);
 
             const gainNode = audioCtx.createGain();
             gainNode.gain.setValueAtTime(0, now);
-            gainNode.gain.linearRampToValueAtTime(0.8, now + 0.01); 
-            gainNode.gain.setTargetAtTime(0.001, now + 0.02, 0.4); 
+            gainNode.gain.linearRampToValueAtTime(0.3, now + 0.008); // Ganancia moderada por nota para evitar saturar al sumar notas
+            gainNode.gain.setTargetAtTime(0.001, now + 0.015, 0.35); 
 
             osc1.connect(gainNode);
             osc2.connect(gainNode);
             
             const osc3Gain = audioCtx.createGain();
             osc3Gain.gain.setValueAtTime(0, now);
-            osc3Gain.gain.linearRampToValueAtTime(0.15, now + 0.01);
-            osc3Gain.gain.setTargetAtTime(0.001, now + 0.02, 0.2);
+            osc3Gain.gain.linearRampToValueAtTime(0.08, now + 0.008);
+            osc3Gain.gain.setTargetAtTime(0.001, now + 0.015, 0.2);
             osc3.connect(osc3Gain);
             osc3Gain.connect(gainNode);
 
@@ -258,7 +268,7 @@
             filter.connect(masterGain);
 
             osc1.start(now); osc2.start(now); osc3.start(now);
-            const stopTime = now + 2.0;
+            const stopTime = now + 1.8;
             osc1.stop(stopTime); osc2.stop(stopTime); osc3.stop(stopTime);
         }
 
@@ -267,19 +277,21 @@
             initAudio();
             stopDrone(); 
             const now = audioCtx.currentTime;
+            const octaveShift = parseInt(document.getElementById('sel-octave').value) * 12;
             
             midiNotes.forEach(midiNote => {
-                const freq = 440 * Math.pow(2, (midiNote - 12 - 69) / 12); 
+                const finalMidi = midiNote + octaveShift;
+                const freq = 440 * Math.pow(2, (finalMidi - 12 - 69) / 12); 
                 const osc = audioCtx.createOscillator();
                 osc.type = 'sine';
                 
                 const osc2 = audioCtx.createOscillator();
                 osc2.type = 'triangle';
-                osc2.detune.value = 5;
+                osc2.detune.value = 4;
 
                 const indGain = audioCtx.createGain();
                 indGain.gain.setValueAtTime(0, now);
-                indGain.gain.linearRampToValueAtTime(0.1, now + 0.5); 
+                indGain.gain.linearRampToValueAtTime(0.08, now + 0.4); 
                 
                 osc.connect(indGain);
                 osc2.connect(indGain);
@@ -301,13 +313,12 @@
             activeDrones.forEach(d => {
                 d.gain.gain.cancelScheduledValues(now);
                 d.gain.gain.setValueAtTime(d.gain.gain.value, now);
-                d.gain.gain.linearRampToValueAtTime(0.001, now + 0.5); 
+                d.gain.gain.linearRampToValueAtTime(0.001, now + 0.4); 
                 setTimeout(() => {
                     try { d.osc1.stop(); d.osc2.stop(); } catch(e){}
-                }, 600);
+                }, 500);
             });
             activeDrones = [];
-            document.querySelectorAll('.chord-cell').forEach(c => c.classList.remove('drone-active'));
         }
 
         // --- LÓGICA MUSICAL Y ESTADOS ---
@@ -445,6 +456,7 @@
         document.getElementById('sel-note').addEventListener('change', () => updateTonality(false));
         document.getElementById('sel-accidental').addEventListener('change', () => updateTonality(false));
         document.getElementById('sel-scale').addEventListener('change', () => updateTonality(false)); 
+        document.getElementById('sel-octave').addEventListener('change', () => {}); 
         
         document.querySelectorAll('.layer-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
